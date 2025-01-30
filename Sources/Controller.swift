@@ -181,6 +181,12 @@ open class FloatingPanelController: UIViewController {
         return floatingPanel.panGestureRecognizer
     }
 
+    // The underlying gesture recognizer for additional pan gestures
+    @objc
+    public var additionalPanGestureRecognizer: FloatingPanelPanGestureRecognizer {
+        return floatingPanel.additionalPanGestureRecognizer
+    }
+
     /// The current position of a panel controller's contents.
     @objc
     public var state: FloatingPanelState {
@@ -606,6 +612,11 @@ open class FloatingPanelController: UIViewController {
         }
 
         _contentViewController = contentViewController
+    }
+
+    /// Sets the `additional` pan gesture to the provided view
+    public func addGestureRecognizer(view: UIView) {
+        floatingPanel.addGestureRecognizer(view: view)
     }
 
     // MARK: - Scroll view tracking

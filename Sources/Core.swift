@@ -52,6 +52,10 @@ class Core: NSObject, UIGestureRecognizerDelegate {
 
     let panGestureRecognizer: FloatingPanelPanGestureRecognizer
     let panGestureDelegateRouter: FloatingPanelPanGestureRecognizer.DelegateRouter
+
+    let additionalPanGestureRecognizer: FloatingPanelPanGestureRecognizer
+    let additionalPanGestureDelegateRouter: FloatingPanelPanGestureRecognizer.DelegateRouter
+
     var isRemovalInteractionEnabled: Bool = false
 
     fileprivate var isSuspended: Bool = false // Prevent a memory leak in the modal transition
@@ -96,9 +100,14 @@ class Core: NSObject, UIGestureRecognizerDelegate {
         panGestureRecognizer = FloatingPanelPanGestureRecognizer()
         panGestureDelegateRouter = FloatingPanelPanGestureRecognizer.DelegateRouter(panGestureRecognizer: panGestureRecognizer)
 
+        additionalPanGestureRecognizer = FloatingPanelPanGestureRecognizer()
+        additionalPanGestureDelegateRouter = FloatingPanelPanGestureRecognizer.DelegateRouter(panGestureRecognizer: additionalPanGestureRecognizer)
+
         super.init()
 
         panGestureRecognizer.set(floatingPanel: self)
+        additionalPanGestureRecognizer.set(floatingPanel: self)
+
         surfaceView.addGestureRecognizer(panGestureRecognizer)
         panGestureRecognizer.addTarget(self, action: #selector(handle(panGesture:)))
 
@@ -107,6 +116,7 @@ class Core: NSObject, UIGestureRecognizerDelegate {
         // This is because `delegateOrigin` is used at the time of assignment to its `delegate` property
         // through the delegate router.
         panGestureRecognizer.delegate = panGestureDelegateRouter
+        additionalPanGestureRecognizer.delegate = additionalPanGestureDelegateRouter
 
         // Set the tap-to-dismiss action of the backdrop view.
         // It's disabled by default. See also BackdropView.dismissalTapGestureRecognizer.
@@ -203,6 +213,13 @@ class Core: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    public func addGestureRecognizer(view: UIView) {
+        additionalPanGestureRecognizer.removeTarget(self, action: nil)
+
+        view.addGestureRecognizer(additionalPanGestureRecognizer)
+        additionalPanGestureRecognizer.addTarget(self, action: #selector(handle(panGesture:)))
+    }
+
     // MARK: - Layout update
 
     func activateLayout(
@@ -274,7 +291,8 @@ class Core: NSObject, UIGestureRecognizerDelegate {
 
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                   shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard gestureRecognizer == panGestureRecognizer else { return false }
+        guard gestureRecognizer == panGestureRecognizer ||
+                gestureRecognizer == additionalPanGestureRecognizer else { return false }
 
         /* os_log(msg, log: devLog, type: .debug, "shouldRecognizeSimultaneouslyWith", otherGestureRecognizer) */
 
@@ -321,7 +339,8 @@ class Core: NSObject, UIGestureRecognizerDelegate {
     }
 
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard gestureRecognizer == panGestureRecognizer else { return false }
+        guard gestureRecognizer == panGestureRecognizer ||
+                gestureRecognizer == additionalPanGestureRecognizer else { return false }
 
         // Should begin the pan gesture without waiting for the tracking scroll view's gestures.
         // `scrollView.gestureRecognizers` can contains the following gestures
@@ -505,8 +524,8 @@ class Core: NSObject, UIGestureRecognizerDelegate {
                     }
                 }
             }
-        case panGestureRecognizer:
-            let translation = panGesture.translation(in: panGestureRecognizer.view!.superview)
+        case panGestureRecognizer, additionalPanGestureRecognizer:
+            let translation = panGesture.translation(in: panGesture.view!.superview)
             // The touch velocity in the surface view
             let velocity = panGesture.velocity(in: panGesture.view)
             // The touch location in the surface view
@@ -881,10 +900,13 @@ class Core: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func tearDownActiveInteraction() {
-        guard panGestureRecognizer.isEnabled else { return }
+        guard panGestureRecognizer.isEnabled || additionalPanGestureRecognizer.isEnabled else { return }
         // Cancel the pan gesture so that panningEnd(with:velocity:) is called
         panGestureRecognizer.isEnabled = false
         panGestureRecognizer.isEnabled = true
+
+        additionalPanGestureRecognizer.isEnabled = false
+        additionalPanGestureRecognizer.isEnabled = true
     }
 
     private func shouldAttract(to state: FloatingPanelState) -> Bool {
